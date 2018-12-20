@@ -126,7 +126,7 @@ class TDBMSchemaAnalyzer
     public function getPivotTableLinkedToTable(string $tableName): array
     {
         $cacheKey = $this->getCachePrefix().'_pivottables_link_'.$tableName;
-        if ($this->cache->contains($cacheKey)) {
+        if ($this->cache->contains($cacheKey) && is_array($this->cache->fetch($cacheKey))) {
             return $this->cache->fetch($cacheKey);
         }
 

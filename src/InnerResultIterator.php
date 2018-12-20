@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace TheCodingMachine\TDBM;
 
 use Doctrine\DBAL\Platforms\MySqlPlatform;
+use Doctrine\DBAL\Platforms\OraclePlatform;
 use Doctrine\DBAL\Statement;
 use Mouf\Database\MagicQuery;
 use Psr\Log\LoggerInterface;
@@ -46,6 +47,7 @@ class InnerResultIterator implements \Iterator, \Countable, \ArrayAccess
     private $limit;
     private $offset;
     private $columnDescriptors;
+    private $columnDescriptorsMap = [];
     private $magicQuery;
 
     /**
@@ -92,6 +94,21 @@ class InnerResultIterator implements \Iterator, \Countable, \ArrayAccess
 
     protected function executeQuery(): void
     {
+        /**
+         * If the database provider is Oracle we should convert the colums' aliases
+         * tome something smaller than 30 chars because the length limitation
+         * See https://kb.tableau.com/articles/issue/error-ora-00972?lang=es-es
+         */
+        if ($this->databasePlatform instanceof OraclePlatform) {
+            foreach ($this->columnDescriptors as $k => $columnDescriptor) {
+                if (strlen($k) > 30) {
+                    $columnName = substr('oc_'.md5($k), 0, 28);
+                    $this->columnDescriptorsMap[$columnName] = $k;
+                    $this->magicSql = str_replace('"'.$k.'"', '"'.$columnName.'"', $this->magicSql);
+                }
+            }
+        }
+
         $sql = $this->getQuery();
 
         $this->logger->debug('Running SQL request: '.$sql);
@@ -182,6 +199,20 @@ class InnerResultIterator implements \Iterator, \Countable, \ArrayAccess
             // array<tablegroup, array<table, array<column, value>>>
             $beansData = [];
             foreach ($row as $key => $value) {
+
+                /**
+                 * If the database provider is Oracle we should upper the column descriptors
+                 * and "undo" the alias conversion (See `executeQuery` method)
+                 */
+                if ($this->databasePlatform instanceof OraclePlatform) {
+                    if (is_string($key)) {
+                        if (isset($this->columnDescriptorsMap[$key])) {
+                            $key = $this->columnDescriptorsMap[$key];
+                        }
+                        $key = strtoupper($key);
+                    }
+                }
+                
                 if (!isset($this->columnDescriptors[$key])) {
                     continue;
                 }

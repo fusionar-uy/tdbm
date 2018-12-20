@@ -195,6 +195,7 @@ class DbRow
             $types = $this->tdbmService->_getColumnTypesForTable($this->dbTableName);
 
             foreach ($row as $key => $value) {
+                $key = strtoupper($key);
                 $this->dbRow[$key] = $types[$key]->convertToPHPValue($value, $connection->getDatabasePlatform());
             }
 
